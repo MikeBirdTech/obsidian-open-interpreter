@@ -1,9 +1,6 @@
 # Dependency directories
 node_modules/
 
-# Build output
-main.js
-
 # TypeScript cache
 *.tsbuildinfo
 
