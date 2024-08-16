@@ -1,0 +1,10 @@
+{
+  "id": "open-interpreter-plugin",
+  "name": "Open Interpreter Plugin",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "Plugin for integrating Open Interpreter with Obsidian",
+  "author": "Mike Bird",
+  "authorUrl": "https://www.github.com/MikeBirdTech",
+  "isDesktopOnly": false
+}
