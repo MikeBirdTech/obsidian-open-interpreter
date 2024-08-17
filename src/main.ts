@@ -6,6 +6,7 @@ import {
   TFolder,
   Setting,
   PluginSettingTab,
+  Platform,
 } from "obsidian";
 import { exec, ChildProcess, spawn } from "child_process";
 import * as path from "path";
@@ -371,8 +372,7 @@ export default class OpenInterpreterPlugin extends Plugin {
 
   private getInterpreterPath(): Promise<string | null> {
     return new Promise((resolve) => {
-      const isWindows = process.platform === "win32";
-      const command = isWindows
+      const command = Platform.isWin
         ? "where interpreter"
         : "$SHELL -i -c 'which interpreter'";
 
@@ -384,13 +384,18 @@ export default class OpenInterpreterPlugin extends Plugin {
           console.log("Stdout:", stdout);
           console.log("Stderr:", stderr);
           // Fallback to common paths
-          const commonPaths = [
-            "/usr/local/bin/interpreter",
-            "/usr/bin/interpreter",
-            `${os.homedir()}/Library/Python/3.11/bin/interpreter`,
-            `${os.homedir()}/Library/Python/3.10/bin/interpreter`,
-            `${os.homedir()}/Library/Python/3.9/bin/interpreter`,
-          ];
+          const commonPaths = Platform.isMacOS
+            ? [
+                "/usr/local/bin/interpreter",
+                "/usr/bin/interpreter",
+                `${os.homedir()}/Library/Python/3.11/bin/interpreter`,
+                `${os.homedir()}/Library/Python/3.10/bin/interpreter`,
+                `${os.homedir()}/Library/Python/3.9/bin/interpreter`,
+              ]
+            : Platform.isLinux
+            ? ["/usr/local/bin/interpreter", "/usr/bin/interpreter"]
+            : ["C:\\Python\\Scripts\\interpreter.exe"]; // Windows fallback
+
           for (const path of commonPaths) {
             try {
               await fs.access(path);
