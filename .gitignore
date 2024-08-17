@@ -15,4 +15,8 @@ node_modules/
 Thumbs.db
 
 
+# Compiled JavaScript file
 main.js
+
+# Plugin settings file
+data.json
