@@ -241,7 +241,7 @@ export default class OpenInterpreterPlugin extends Plugin {
 
     this.addCommand({
       id: "run-interpreter",
-      name: "Run Open Interpreter",
+      name: "Enter Command",
       callback: () => this.runInterpreter(),
     });
   }
