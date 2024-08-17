@@ -102,11 +102,6 @@ class InterpreterChatModal extends Modal {
     contentEl.createEl("h2", { text: "Open Interpreter Chat" });
 
     this.outputEl = contentEl.createEl("div", { cls: "interpreter-output" });
-    this.outputEl.style.height = "400px";
-    this.outputEl.style.overflowY = "scroll";
-    this.outputEl.style.border = "1px solid #ccc";
-    this.outputEl.style.padding = "10px";
-    this.outputEl.style.marginBottom = "10px";
 
     this.createInputArea();
     this.createYesNoButtons();
@@ -185,34 +180,21 @@ class InterpreterChatModal extends Modal {
     this.inputEl = this.contentEl.createEl("textarea", {
       cls: "interpreter-input",
     });
-    this.inputEl.style.width = "100%";
-    this.inputEl.style.height = "100px";
-    this.inputEl.style.display = "block";
   }
 
   private createYesNoButtons() {
     this.buttonContainer = this.contentEl.createEl("div", {
       cls: "yes-no-buttons",
     });
-    this.buttonContainer.style.display = "flex";
-    this.buttonContainer.style.justifyContent = "space-between";
-    this.buttonContainer.style.marginTop = "10px";
 
-    this.yesButton = this.buttonContainer.createEl("button", { text: "Yes" });
-    this.yesButton.style.backgroundColor = "#e6ffe6"; // faint green
-    this.yesButton.style.color = "#006600";
-    this.yesButton.style.border = "1px solid #006600";
-    this.yesButton.style.padding = "10px 20px";
-    this.yesButton.style.borderRadius = "5px";
-    this.yesButton.style.cursor = "pointer";
-
-    this.noButton = this.buttonContainer.createEl("button", { text: "No" });
-    this.noButton.style.backgroundColor = "#ffe6e6"; // faint red
-    this.noButton.style.color = "#660000";
-    this.noButton.style.border = "1px solid #660000";
-    this.noButton.style.padding = "10px 20px";
-    this.noButton.style.borderRadius = "5px";
-    this.noButton.style.cursor = "pointer";
+    this.yesButton = this.buttonContainer.createEl("button", {
+      text: "Yes",
+      cls: "yes",
+    });
+    this.noButton = this.buttonContainer.createEl("button", {
+      text: "No",
+      cls: "no",
+    });
 
     this.yesButton.onclick = () => this.sendMessage("y");
     this.noButton.onclick = () => this.sendMessage("n");

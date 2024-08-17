@@ -1,0 +1,37 @@
+.interpreter-output {
+  height: 400px;
+  overflow-y: scroll;
+  border: 1px solid #ccc;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.interpreter-input {
+  width: 100%;
+  height: 100px;
+  display: block;
+}
+
+.yes-no-buttons {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.yes-no-buttons button {
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.yes-no-buttons button.yes {
+  background-color: #e6ffe6;
+  color: #006600;
+  border: 1px solid #006600;
+}
+
+.yes-no-buttons button.no {
+  background-color: #ffe6e6;
+  color: #660000;
+  border: 1px solid #660000;
+}
