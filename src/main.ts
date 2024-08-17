@@ -60,11 +60,24 @@ class InterpreterInputModal extends Modal {
 
     contentEl.createEl("h1", { text: "Enter command for Open Interpreter" });
 
-    new Setting(contentEl).setName("Command").addText((text) =>
-      text.onChange((value) => {
-        this.result = value;
-      })
-    );
+    const inputSetting = new Setting(contentEl)
+      .setName("Command")
+      .addText((text) =>
+        text
+          .onChange((value) => {
+            this.result = value;
+          })
+          .inputEl.addEventListener("keydown", (event: KeyboardEvent) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              this.close();
+              this.onSubmit(this.result);
+            }
+          })
+      );
+
+    // Set focus to the input field
+    inputSetting.controlEl.querySelector("input")?.focus();
 
     new Setting(contentEl).addButton((btn) =>
       btn
