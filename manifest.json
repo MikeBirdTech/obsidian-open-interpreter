@@ -3,8 +3,8 @@
   "name": "Open Interpreter",
   "version": "1.0.0",
   "minAppVersion": "0.15.0",
-  "description": "Plugin for integrating Open Interpreter with Obsidian",
+  "description": "Use Open Interpreter to run operations on your vault",
   "author": "Mike Bird",
   "authorUrl": "https://www.github.com/MikeBirdTech",
-  "isDesktopOnly": false
+  "isDesktopOnly": true
 }

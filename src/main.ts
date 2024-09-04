@@ -427,8 +427,6 @@ class OpenInterpreterSettingTab extends PluginSettingTab {
 
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Open Interpreter Settings" });
-
     new Setting(containerEl)
       .setName("OpenAI API Key")
       .setDesc("Enter your OpenAI API key")
