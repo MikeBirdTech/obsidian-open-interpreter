@@ -3,28 +3,28 @@ import {
   Notice,
   Modal,
   App,
-  TFolder,
   Setting,
   PluginSettingTab,
   Platform,
+  DropdownComponent,
+  FileSystemAdapter,
 } from "obsidian";
 import { exec, ChildProcess, spawn } from "child_process";
-import * as path from "path";
 import * as os from "os";
 import * as fs from "fs/promises";
 
 interface OpenInterpreterSettings {
-  apiKey: string;
-  anthropicApiKey: string; // New field for Anthropic API Key
-  provider: 'OpenAI' | 'Anthropic'; // New field for Provider selection
-  model: string; // New field for LLM Model selection
+  openaiApiKey: string;
+  anthropicApiKey: string;
+  provider: "OpenAI" | "Anthropic";
+  model: string;
 }
 
 const DEFAULT_SETTINGS: OpenInterpreterSettings = {
-  apiKey: "",
-  anthropicApiKey: "", // Default value for Anthropic API Key
-  provider: 'OpenAI', // Default provider
-  model: 'gpt-3.5-turbo', // Default model
+  openaiApiKey: "",
+  anthropicApiKey: "",
+  provider: "OpenAI", // Default provider
+  model: "gpt-4o", // Default model
 };
 
 class InstallationGuideModal extends Modal {
@@ -277,40 +277,10 @@ export default class OpenInterpreterPlugin extends Plugin {
     });
   }
 
-  private async getInterpreterProfilePath(): Promise<string> {
-    const homedir = os.homedir();
-    const profileDir = path.join(
-      homedir,
-      "Library",
-      "Application Support",
-      "open-interpreter",
-      "profiles"
-    );
-    const profilePath = path.join(profileDir, "obsidian.py");
-
-    // Ensure the directory exists
-    await fs.mkdir(profileDir, { recursive: true });
-
-    // Create an empty profile file if it doesn't exist
-    if (!(await fs.stat(profilePath).catch(() => false))) {
-      await fs.writeFile(
-        profilePath,
-        "# Obsidian profile for Open Interpreter\n"
-      );
-    }
-
-    return profilePath;
-  }
-
   private getVaultPath(): string | null {
     const adapter = this.app.vault.adapter;
-    if (adapter && "basePath" in adapter) {
-      return (adapter as any).basePath;
-    }
-    // Fallback to the previous method if basePath is not available
-    const rootFolder = this.app.vault.getRoot();
-    if (rootFolder instanceof TFolder) {
-      return rootFolder.path;
+    if (adapter instanceof FileSystemAdapter) {
+      return adapter.getBasePath();
     }
     console.error("Could not determine vault path");
     return null;
@@ -330,8 +300,9 @@ export default class OpenInterpreterPlugin extends Plugin {
   }
 
   private async executeInterpreterCommand(command: string) {
-    const profilePath = await this.getInterpreterProfilePath();
     const vaultPath = this.getVaultPath();
+
+    console.log("Determined vault path:", vaultPath);
 
     if (!vaultPath) {
       console.error("Vault path could not be determined.");
@@ -350,27 +321,65 @@ export default class OpenInterpreterPlugin extends Plugin {
     }
 
     const env = { ...process.env };
-    if (this.settings.provider === 'OpenAI') {
-      env.OPENAI_API_KEY = this.settings.apiKey;
-    } else if (this.settings.provider === 'Anthropic') {
-      env.ANTHROPIC_API_KEY = this.settings.anthropicApiKey;
+    if (this.settings.provider === "OpenAI") {
+      env.OPENAI_API_KEY =
+        process.env.OPENAI_API_KEY || this.settings.openaiApiKey;
+    } else if (this.settings.provider === "Anthropic") {
+      env.ANTHROPIC_API_KEY =
+        process.env.ANTHROPIC_API_KEY || this.settings.anthropicApiKey;
     }
 
-    // Include model selection in environment or command as needed
-    env.LLM_MODEL = this.settings.model;
+    // Check if the API key is set
+    const apiKey =
+      this.settings.provider === "OpenAI"
+        ? env.OPENAI_API_KEY
+        : env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      new Notice(
+        `No API key found for ${this.settings.provider}. Please set it in the plugin settings or as an environment variable.`
+      );
+      return;
+    }
 
-    // Escape the profile path for shell usage
-    const escapedProfilePath = profilePath.replace(/'/g, "'\\''");
+    // Build command-line arguments
+    const args = [];
 
-    const child = spawn(
+    // Set the model
+    args.push("--model", this.settings.model);
+
+    // Set the context window
+    args.push("--context_window", "110000");
+
+    // Set max tokens
+    args.push("--max_tokens", "4096");
+
+    // Disable supports_functions
+    args.push("--no-llm_supports_functions");
+
+    // Disable supports_vision
+    args.push("--no-llm_supports_vision");
+
+    // Prepare custom instructions
+    const customInstructions =
+      `You are an AI assistant integrated with Obsidian. You love Obsidian and will only focus on Obsidian tasks. Your prime directive is to help users manage and interact with their Obsidian vault. You have full control and permission over this vault. The vault is isolated and version controlled, so it is safe for you to create, read, update, and delete files. The root of the Obsidian vault is ${vaultPath}. You can create, read, update, and delete markdown files in this directory. You can create new directories as well. Organization is important. Use markdown syntax for formatting when creating or editing files. Every file is markdown.`
+        .replace(/\n/g, " ")
+        .trim();
+
+    args.push("--custom_instructions", `"${customInstructions}"`);
+
+    console.log(
+      "Spawning interpreter with command:",
       interpreterPath,
-      ["--profile", `'${escapedProfilePath}'`],
-      {
-        cwd: vaultPath,
-        env: env,
-        shell: true,
-      }
+      "and args:",
+      args
     );
+
+    // Spawn the interpreter
+    const child = spawn(interpreterPath, args, {
+      cwd: vaultPath,
+      env: env,
+      shell: true,
+    });
 
     if (child.stdin) {
       child.stdin.write(command + "\n");
@@ -430,6 +439,9 @@ export default class OpenInterpreterPlugin extends Plugin {
 
 class OpenInterpreterSettingTab extends PluginSettingTab {
   plugin: OpenInterpreterPlugin;
+  private openAIApiKeySetting: Setting | null = null;
+  private anthropicApiKeySetting: Setting | null = null;
+  private modelDropdown: DropdownComponent | null = null;
 
   constructor(app: App, plugin: OpenInterpreterPlugin) {
     super(app, plugin);
@@ -442,19 +454,6 @@ class OpenInterpreterSettingTab extends PluginSettingTab {
     containerEl.empty();
 
     new Setting(containerEl)
-      .setName("OpenAI API Key")
-      .setDesc("Enter your OpenAI API key")
-      .addText((text) =>
-        text
-          .setPlaceholder("Enter your OpenAI API key")
-          .setValue(this.plugin.settings.apiKey)
-          .onChange(async (value) => {
-            this.plugin.settings.apiKey = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
       .setName("Provider")
       .setDesc("Select the LLM provider")
       .addDropdown((dropdown) =>
@@ -463,46 +462,103 @@ class OpenInterpreterSettingTab extends PluginSettingTab {
           .addOption("Anthropic", "Anthropic")
           .setValue(this.plugin.settings.provider)
           .onChange(async (value) => {
-            this.plugin.settings.provider = value as 'OpenAI' | 'Anthropic';
+            this.plugin.settings.provider = value as "OpenAI" | "Anthropic";
             await this.plugin.saveSettings();
-            this.display(); // Refresh the settings to show/hide relevant fields
+            this.updateApiKeyVisibility();
+            this.updateModelOptions();
           })
       );
 
-    if (this.plugin.settings.provider === 'Anthropic') {
-      new Setting(containerEl)
-        .setName("Anthropic API Key")
-        .setDesc("Enter your Anthropic API key")
-        .addText((text) =>
-          text
-            .setPlaceholder("Enter your Anthropic API key")
-            .setValue(this.plugin.settings.anthropicApiKey)
-            .onChange(async (value) => {
-              this.plugin.settings.anthropicApiKey = value;
-              await this.plugin.saveSettings();
-            })
-        );
-    }
+    this.openAIApiKeySetting = new Setting(containerEl)
+      .setName("OpenAI API Key")
+      .setDesc("Enter your OpenAI API key")
+      .addText((text) =>
+        text
+          .setPlaceholder("Enter your OpenAI API key")
+          .setValue(this.plugin.settings.openaiApiKey)
+          .onChange(async (value) => {
+            this.plugin.settings.openaiApiKey = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    this.anthropicApiKeySetting = new Setting(containerEl)
+      .setName("Anthropic API Key")
+      .setDesc("Enter your Anthropic API key")
+      .addText((text) =>
+        text
+          .setPlaceholder("Enter your Anthropic API key")
+          .setValue(this.plugin.settings.anthropicApiKey)
+          .onChange(async (value) => {
+            this.plugin.settings.anthropicApiKey = value;
+            await this.plugin.saveSettings();
+          })
+      );
 
     new Setting(containerEl)
       .setName("Model")
       .setDesc("Select the LLM model")
       .addDropdown((dropdown) => {
-        const models = this.plugin.settings.provider === 'OpenAI'
-          ? {
-              "gpt-3.5-turbo": "GPT-3.5 Turbo",
-              "gpt-4": "GPT-4",
-            }
-          : {
-              "claude-v1": "Claude v1",
-              "claude-v2": "Claude v2",
-            };
-        dropdown.addOptions(models);
-        dropdown.setValue(this.plugin.settings.model);
+        this.modelDropdown = dropdown;
+        this.updateModelOptions();
         dropdown.onChange(async (value) => {
           this.plugin.settings.model = value;
           await this.plugin.saveSettings();
         });
       });
+
+    this.updateApiKeyVisibility();
+  }
+
+  private updateApiKeyVisibility() {
+    if (this.openAIApiKeySetting && this.anthropicApiKeySetting) {
+      if (this.plugin.settings.provider === "OpenAI") {
+        this.openAIApiKeySetting.settingEl.style.display = "block";
+        this.anthropicApiKeySetting.settingEl.style.display = "none";
+      } else {
+        this.openAIApiKeySetting.settingEl.style.display = "none";
+        this.anthropicApiKeySetting.settingEl.style.display = "block";
+      }
+    }
+  }
+
+  private updateModelOptions() {
+    if (this.modelDropdown) {
+      const models = this.getModelsForProvider(this.plugin.settings.provider);
+      // Remove all existing options
+      this.modelDropdown.selectEl.empty();
+      // Add new options
+      Object.entries(models).forEach(([value, name]) => {
+        this.modelDropdown?.addOption(value, name);
+      });
+
+      // Set the first model as default if the current model is not in the list
+      if (!models[this.plugin.settings.model]) {
+        this.plugin.settings.model = Object.keys(models)[0];
+        this.plugin.saveSettings();
+      }
+
+      this.modelDropdown.setValue(this.plugin.settings.model);
+    }
+  }
+
+  private getModelsForProvider(
+    provider: "OpenAI" | "Anthropic"
+  ): Record<string, string> {
+    switch (provider) {
+      case "OpenAI":
+        return {
+          "gpt-4o": "GPT-4o",
+          "gpt-4o-mini": "GPT-4o-mini",
+        };
+      case "Anthropic":
+        return {
+          "claude-3-5-sonnet-20241022": "Claude 3.5 Sonnet",
+          "claude-3-opus-20240229": "Claude 3 Opus",
+        };
+      default:
+        console.error(`Unknown provider: ${provider}`);
+        return {};
+    }
   }
 }
