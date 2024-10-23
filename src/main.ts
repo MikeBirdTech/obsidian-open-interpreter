@@ -15,10 +15,16 @@ import * as fs from "fs/promises";
 
 interface OpenInterpreterSettings {
   apiKey: string;
+  anthropicApiKey: string; // New field for Anthropic API Key
+  provider: 'OpenAI' | 'Anthropic'; // New field for Provider selection
+  model: string; // New field for LLM Model selection
 }
 
 const DEFAULT_SETTINGS: OpenInterpreterSettings = {
   apiKey: "",
+  anthropicApiKey: "", // Default value for Anthropic API Key
+  provider: 'OpenAI', // Default provider
+  model: 'gpt-3.5-turbo', // Default model
 };
 
 class InstallationGuideModal extends Modal {
@@ -343,7 +349,15 @@ export default class OpenInterpreterPlugin extends Plugin {
       return;
     }
 
-    const env = { ...process.env, OPENAI_API_KEY: this.settings.apiKey };
+    const env = { ...process.env };
+    if (this.settings.provider === 'OpenAI') {
+      env.OPENAI_API_KEY = this.settings.apiKey;
+    } else if (this.settings.provider === 'Anthropic') {
+      env.ANTHROPIC_API_KEY = this.settings.anthropicApiKey;
+    }
+
+    // Include model selection in environment or command as needed
+    env.LLM_MODEL = this.settings.model;
 
     // Escape the profile path for shell usage
     const escapedProfilePath = profilePath.replace(/'/g, "'\\''");
@@ -432,12 +446,63 @@ class OpenInterpreterSettingTab extends PluginSettingTab {
       .setDesc("Enter your OpenAI API key")
       .addText((text) =>
         text
-          .setPlaceholder("Enter your api key")
+          .setPlaceholder("Enter your OpenAI API key")
           .setValue(this.plugin.settings.apiKey)
           .onChange(async (value) => {
             this.plugin.settings.apiKey = value;
             await this.plugin.saveSettings();
           })
       );
+
+    new Setting(containerEl)
+      .setName("Provider")
+      .setDesc("Select the LLM provider")
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption("OpenAI", "OpenAI")
+          .addOption("Anthropic", "Anthropic")
+          .setValue(this.plugin.settings.provider)
+          .onChange(async (value) => {
+            this.plugin.settings.provider = value as 'OpenAI' | 'Anthropic';
+            await this.plugin.saveSettings();
+            this.display(); // Refresh the settings to show/hide relevant fields
+          })
+      );
+
+    if (this.plugin.settings.provider === 'Anthropic') {
+      new Setting(containerEl)
+        .setName("Anthropic API Key")
+        .setDesc("Enter your Anthropic API key")
+        .addText((text) =>
+          text
+            .setPlaceholder("Enter your Anthropic API key")
+            .setValue(this.plugin.settings.anthropicApiKey)
+            .onChange(async (value) => {
+              this.plugin.settings.anthropicApiKey = value;
+              await this.plugin.saveSettings();
+            })
+        );
+    }
+
+    new Setting(containerEl)
+      .setName("Model")
+      .setDesc("Select the LLM model")
+      .addDropdown((dropdown) => {
+        const models = this.plugin.settings.provider === 'OpenAI'
+          ? {
+              "gpt-3.5-turbo": "GPT-3.5 Turbo",
+              "gpt-4": "GPT-4",
+            }
+          : {
+              "claude-v1": "Claude v1",
+              "claude-v2": "Claude v2",
+            };
+        dropdown.addOptions(models);
+        dropdown.setValue(this.plugin.settings.model);
+        dropdown.onChange(async (value) => {
+          this.plugin.settings.model = value;
+          await this.plugin.saveSettings();
+        });
+      });
   }
 }
