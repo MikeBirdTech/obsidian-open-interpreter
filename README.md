@@ -1,13 +1,13 @@
 # Open Interpreter Plugin for Obsidian
 
-This plugin integrates Open Interpreter with Obsidian, allowing you to run AI-powered code interpretation directly within your notes.
+This plugin integrates Open Interpreter with Obsidian, allowing you to run AI-powered automations directly within your notes using natural language commands.
 
 ## Features
 
-- Run Open Interpreter commands from within Obsidian
+- Execute natural language commands to automate tasks within your Obsidian vault
 - Interactive chat interface for communicating with the interpreter
 - Automatic installation check and guidance for Open Interpreter
-- Seamless integration with your Obsidian vault
+- Seamless integration with your Obsidian vault, with full access to read, write, and edit Markdown files
 
 ## Installation
 
@@ -17,9 +17,9 @@ This plugin integrates Open Interpreter with Obsidian, allowing you to run AI-po
 
 ## Usage
 
-1. Use the command palette (Cmd/Ctrl + P) and search for "Run Open Interpreter".
-2. Enter your command in the input modal that appears.
-3. Interact with the interpreter through the chat interface.
+1. Use the command palette (Cmd/Ctrl + P) and search for "AI Command".
+2. Enter your natural language command in the input modal that appears.
+3. Interact with the interpreter through the chat interface to automate tasks within your vault.
 
 ## Requirements
 
@@ -36,7 +36,7 @@ If you encounter issues:
 
 1. Ensure Open Interpreter is correctly installed and accessible from your terminal.
 2. Check the console for any error messages.
-3. Verify that your OPENAI_API_KEY environment variable is set correctly.
+3. Verify that your OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable is set correctly, depending on your selected provider.
 
 ## Contributing
 
