@@ -1,18 +1,19 @@
 # Open Interpreter Plugin for Obsidian
 
-This plugin integrates Open Interpreter with Obsidian, allowing you to run AI-powered automations directly within your notes using natural language commands.
+This plugin integrates Open Interpreter with Obsidian, allowing you to run AI-powered automations directly within your vault using natural language commands.
 
 ## Features
 
-- Execute natural language commands to automate tasks within your Obsidian vault
-- Interactive chat interface for communicating with the interpreter
+- Use natural language commands to automate tasks within your Obsidian vault
+- Interactive chat interface for communicating with Open Interpreter
 - Automatic installation check and guidance for Open Interpreter
 - Seamless integration with your Obsidian vault, with full access to read, write, and edit Markdown files
+- Always requires user approval before executing actions
 
 ## Installation
 
-1. Install the plugin from the Obsidian Community Plugins browser.
-2. Enable the plugin in Obsidian settings.
+1. Install the plugin from the [Obsidian Community Plugins browser](obsidian://show-plugin?id=open-interpreter)
+2. Enable the plugin in Obsidian Community plugins settings.
 3. Ensure [Open Interpreter](https://github.com/OpenInterpreter/open-interpreter) is installed on your system. If not, the plugin will guide you through the installation process.
 
 ## Usage
@@ -30,17 +31,19 @@ This plugin integrates Open Interpreter with Obsidian, allowing you to run AI-po
 
 The plugin automatically detects your Obsidian vault path and sets up the necessary environment for Open Interpreter to run within your vault context.
 
+You will need to set your API key(s) and appropriate settings for your selected model in Settings.
+
 ## Troubleshooting
 
 If you encounter issues:
 
 1. Ensure Open Interpreter is correctly installed and accessible from your terminal.
 2. Check the console for any error messages.
-3. Verify that your OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable is set correctly, depending on your selected provider.
+3. Verify that your GROQ_API_KEY, OPENAI_API_KEY, and/or ANTHROPIC_API_KEY is set correctly.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please feel free to submit a Pull Request ❤️
 
 ## License
 
