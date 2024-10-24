@@ -1,6 +1,6 @@
 {
   "name": "open-interpreter-plugin",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Plugin for integrating Open Interpreter with Obsidian",
   "main": "main.js",
   "scripts": {
