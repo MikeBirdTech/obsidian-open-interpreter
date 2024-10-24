@@ -23,8 +23,8 @@ interface OpenInterpreterSettings {
 const DEFAULT_SETTINGS: OpenInterpreterSettings = {
   openaiApiKey: "",
   anthropicApiKey: "",
-  provider: "OpenAI", // Default provider
-  model: "gpt-4o", // Default model
+  provider: "OpenAI",
+  model: "gpt-4o",
 };
 
 class InstallationGuideModal extends Modal {
@@ -63,37 +63,42 @@ class InterpreterInputModal extends Modal {
 
   onOpen() {
     const { contentEl } = this;
+    contentEl.addClass("interpreter-modal-content");
 
-    contentEl.createEl("h1", { text: "Enter command for Open Interpreter" });
+    contentEl.createEl("h2", {
+      text: "Enter command for Open Interpreter",
+      cls: "interpreter-modal-title",
+    });
 
-    const inputSetting = new Setting(contentEl)
-      .setName("Command")
-      .addText((text) =>
-        text
-          .onChange((value) => {
-            this.result = value;
-          })
-          .inputEl.addEventListener("keydown", (event: KeyboardEvent) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              this.close();
-              this.onSubmit(this.result);
-            }
-          })
-      );
+    const inputEl = contentEl.createEl("input", {
+      type: "text",
+      cls: "interpreter-modal-input",
+      placeholder: "Enter your command...",
+    });
 
-    // Set focus to the input field
-    inputSetting.controlEl.querySelector("input")?.focus();
+    inputEl.addEventListener("input", (e) => {
+      this.result = (e.target as HTMLInputElement).value;
+    });
 
-    new Setting(contentEl).addButton((btn) =>
-      btn
-        .setButtonText("Submit")
-        .setCta()
-        .onClick(() => {
-          this.close();
-          this.onSubmit(this.result);
-        })
-    );
+    inputEl.addEventListener("keydown", (event: KeyboardEvent) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        this.close();
+        this.onSubmit(this.result);
+      }
+    });
+
+    inputEl.focus();
+
+    const submitButton = contentEl.createEl("button", {
+      text: "Submit",
+      cls: "submit-button",
+    });
+
+    submitButton.addEventListener("click", () => {
+      this.close();
+      this.onSubmit(this.result);
+    });
   }
 
   onClose() {
@@ -109,6 +114,7 @@ class InterpreterChatModal extends Modal {
   private buttonContainer!: HTMLElement;
   private yesButton!: HTMLButtonElement;
   private noButton!: HTMLButtonElement;
+  private sendButton!: HTMLButtonElement;
 
   constructor(app: App, interpreter: ChildProcess) {
     super(app);
@@ -117,16 +123,14 @@ class InterpreterChatModal extends Modal {
 
   onOpen() {
     const { contentEl } = this;
+    contentEl.addClass("interpreter-modal-content");
 
     contentEl.createEl("h2", { text: "Open Interpreter Chat" });
 
     this.outputEl = contentEl.createEl("div", { cls: "interpreter-output" });
 
     this.createInputArea();
-    this.createYesNoButtons();
-
-    const sendButton = contentEl.createEl("button", { text: "Send" });
-    sendButton.onclick = () => this.sendMessage();
+    this.createButtons();
 
     this.setupInterpreterListeners();
   }
@@ -157,7 +161,6 @@ class InterpreterChatModal extends Modal {
   }
 
   private appendOutput(text: string, isError: boolean = false) {
-    // Split the text into smaller chunks if it's very long
     const chunks = text.match(/.{1,1000}/g) || [];
 
     chunks.forEach((chunk) => {
@@ -168,10 +171,8 @@ class InterpreterChatModal extends Modal {
       }
     });
 
-    // Scroll to the bottom
     this.outputEl.scrollTop = this.outputEl.scrollHeight;
 
-    // Check for the code execution prompt
     if (text.trim().endsWith("Would you like to run this code? (y/n)")) {
       this.showYesNoButtons();
     } else {
@@ -192,7 +193,7 @@ class InterpreterChatModal extends Modal {
       this.interpreter.stdin.write(message + "\n");
     }
     this.appendOutput(`You: ${message}`);
-    this.showInputArea(); // Reset to input area after sending
+    this.showInputArea();
   }
 
   private createInputArea() {
@@ -201,34 +202,47 @@ class InterpreterChatModal extends Modal {
     });
   }
 
-  private createYesNoButtons() {
+  private createButtons() {
+    // Create Yes/No buttons container
     this.buttonContainer = this.contentEl.createEl("div", {
       cls: "yes-no-buttons",
     });
 
+    // Create Yes button
     this.yesButton = this.buttonContainer.createEl("button", {
       text: "Yes",
-      cls: "yes",
+      cls: "interpreter-chat-button yes",
     });
+    this.yesButton.onclick = () => this.sendMessage("y");
+
+    // Create No button
     this.noButton = this.buttonContainer.createEl("button", {
       text: "No",
-      cls: "no",
+      cls: "interpreter-chat-button no",
     });
-
-    this.yesButton.onclick = () => this.sendMessage("y");
     this.noButton.onclick = () => this.sendMessage("n");
 
+    // Create Send button
+    this.sendButton = this.contentEl.createEl("button", {
+      text: "Send",
+      cls: "interpreter-chat-button send",
+    });
+    this.sendButton.onclick = () => this.sendMessage();
+
+    // Initially hide the Yes/No buttons
     this.buttonContainer.style.display = "none";
   }
 
   private showInputArea() {
     this.inputEl.style.display = "block";
     this.buttonContainer.style.display = "none";
+    this.sendButton.style.display = "block";
   }
 
   private showYesNoButtons() {
     this.inputEl.style.display = "none";
-    this.buttonContainer.style.display = "block";
+    this.buttonContainer.style.display = "flex";
+    this.sendButton.style.display = "none";
   }
 }
 
@@ -243,7 +257,7 @@ export default class OpenInterpreterPlugin extends Plugin {
 
     this.addCommand({
       id: "run-interpreter",
-      name: "Enter Command",
+      name: "AI Command",
       callback: () => this.runInterpreter(),
     });
   }
@@ -329,37 +343,25 @@ export default class OpenInterpreterPlugin extends Plugin {
         process.env.ANTHROPIC_API_KEY || this.settings.anthropicApiKey;
     }
 
-    // Check if the API key is set
     const apiKey =
       this.settings.provider === "OpenAI"
         ? env.OPENAI_API_KEY
         : env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       new Notice(
-        `No API key found for ${this.settings.provider}. Please set it in the plugin settings or as an environment variable.`
+        `No API key found for ${this.settings.provider}. Please set it in the plugin settings.`
       );
       return;
     }
 
-    // Build command-line arguments
     const args = [];
 
-    // Set the model
     args.push("--model", this.settings.model);
-
-    // Set the context window
     args.push("--context_window", "110000");
-
-    // Set max tokens
     args.push("--max_tokens", "4096");
-
-    // Disable supports_functions
     args.push("--no-llm_supports_functions");
-
-    // Disable supports_vision
     args.push("--no-llm_supports_vision");
 
-    // Prepare custom instructions
     const customInstructions =
       `You are an AI assistant integrated with Obsidian. You love Obsidian and will only focus on Obsidian tasks. Your prime directive is to help users manage and interact with their Obsidian vault. You have full control and permission over this vault. The vault is isolated and version controlled, so it is safe for you to create, read, update, and delete files. The root of the Obsidian vault is ${vaultPath}. You can create, read, update, and delete markdown files in this directory. You can create new directories as well. Organization is important. Use markdown syntax for formatting when creating or editing files. Every file is markdown.`
         .replace(/\n/g, " ")
@@ -374,7 +376,6 @@ export default class OpenInterpreterPlugin extends Plugin {
       args
     );
 
-    // Spawn the interpreter
     const child = spawn(interpreterPath, args, {
       cwd: vaultPath,
       env: env,
@@ -401,7 +402,6 @@ export default class OpenInterpreterPlugin extends Plugin {
           console.error("Error finding interpreter:", error);
           console.log("Stdout:", stdout);
           console.log("Stderr:", stderr);
-          // Fallback to common paths
           const commonPaths = Platform.isMacOS
             ? [
                 "/usr/local/bin/interpreter",
@@ -412,7 +412,7 @@ export default class OpenInterpreterPlugin extends Plugin {
               ]
             : Platform.isLinux
             ? ["/usr/local/bin/interpreter", "/usr/bin/interpreter"]
-            : ["C:\\Python\\Scripts\\interpreter.exe"]; // Windows fallback
+            : ["C:\\Python\\Scripts\\interpreter.exe"];
 
           for (const path of commonPaths) {
             try {

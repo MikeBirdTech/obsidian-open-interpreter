@@ -1,37 +1,149 @@
-.interpreter-output {
-  height: 400px;
-  overflow-y: scroll;
-  border: 1px solid #ccc;
-  padding: 10px;
-  margin-bottom: 10px;
+/* Modal Container - this targets Obsidian's modal container */
+.modal {
+  background-color: var(--background-primary);
+  border-radius: 12px;
+  border: 1px solid var(--background-modifier-border);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  width: 600px; /* Set default width */
 }
 
-.interpreter-input {
+/* Modal Content */
+.interpreter-modal-content {
+  padding: 20px;
+  width: 100%; /* Take up full width of modal */
+  box-sizing: border-box;
+}
+
+/* Modal Title */
+.interpreter-modal-title {
+  color: var(--text-normal);
+  font-size: 1.2em;
+  font-weight: 500;
+  margin: 0 0 20px 0;
+  text-align: center;
+}
+
+/* Input Field */
+.interpreter-modal-input {
   width: 100%;
-  height: 100px;
+  padding: 12px 16px;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  color: var(--text-normal);
+  font-size: 1em;
+  transition: all 0.2s ease;
+  margin-bottom: 20px;
+  box-sizing: border-box;
+}
+
+.interpreter-modal-input:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 2px var(--background-modifier-border-hover);
+}
+
+/* Submit Button */
+.submit-button {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: auto;
   display: block;
 }
 
+.submit-button:hover {
+  filter: brightness(1.1);
+}
+
+/* Close Button */
+.modal-close-button {
+  color: var(--text-muted);
+  opacity: 0.8;
+  transition: all 0.2s ease;
+}
+
+.modal-close-button:hover {
+  color: var(--text-normal);
+  opacity: 1;
+}
+
+/* Output Area */
+.interpreter-output {
+  height: 400px;
+  width: 100%;
+  overflow-y: auto;
+  padding: 16px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  box-sizing: border-box;
+}
+
+/* Chat Input Area */
+.interpreter-input {
+  width: 100%;
+  height: 100px;
+  padding: 12px 16px;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  color: var(--text-normal);
+  font-size: 1em;
+  transition: all 0.2s ease;
+  resize: vertical;
+  margin-bottom: 16px;
+  box-sizing: border-box;
+}
+
+.interpreter-input:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 2px var(--background-modifier-border-hover);
+}
+
+/* Button Container */
 .yes-no-buttons {
   display: flex;
-  justify-content: space-between;
-  margin-top: 10px;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
 }
 
-.yes-no-buttons button {
-  padding: 10px 20px;
-  border-radius: 5px;
+/* Chat Interface Buttons */
+.interpreter-chat-button {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 500;
   cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  text-align: center;
+  min-width: 80px;
 }
 
-.yes-no-buttons button.yes {
-  background-color: #e6ffe6;
-  color: #006600;
-  border: 1px solid #006600;
+.interpreter-chat-button.yes {
+  background-color: #4caf50;
+  color: white;
 }
 
-.yes-no-buttons button.no {
-  background-color: #ffe6e6;
-  color: #660000;
-  border: 1px solid #660000;
+.interpreter-chat-button.no {
+  background-color: #f44336;
+  color: white;
+}
+
+.interpreter-chat-button.send {
+  background-color: var(--interactive-accent);
+  color: white;
+}
+
+.interpreter-chat-button:hover {
+  filter: brightness(1.1);
 }
