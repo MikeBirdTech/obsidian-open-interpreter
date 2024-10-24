@@ -16,15 +16,25 @@ import * as fs from "fs/promises";
 interface OpenInterpreterSettings {
   openaiApiKey: string;
   anthropicApiKey: string;
-  provider: "OpenAI" | "Anthropic";
+  groqApiKey: string;
+  provider: "OpenAI" | "Anthropic" | "Groq";
   model: string;
+  contextWindow: string;
+  maxTokens: string;
+  llmSupportsFunctions: boolean;
+  llmSupportsVision: boolean;
 }
 
 const DEFAULT_SETTINGS: OpenInterpreterSettings = {
   openaiApiKey: "",
   anthropicApiKey: "",
-  provider: "OpenAI",
-  model: "gpt-4o",
+  groqApiKey: "",
+  provider: "Anthropic",
+  model: "claude-3-5-sonnet-20241022",
+  contextWindow: "4000",
+  maxTokens: "2048",
+  llmSupportsFunctions: false,
+  llmSupportsVision: false,
 };
 
 class InstallationGuideModal extends Modal {
@@ -247,7 +257,7 @@ class InterpreterChatModal extends Modal {
 }
 
 export default class OpenInterpreterPlugin extends Plugin {
-  settings!: OpenInterpreterSettings;
+  settings: OpenInterpreterSettings = DEFAULT_SETTINGS;
   private interpreterInstalled: boolean = false;
 
   async onload() {
@@ -335,18 +345,25 @@ export default class OpenInterpreterPlugin extends Plugin {
     }
 
     const env = { ...process.env };
-    if (this.settings.provider === "OpenAI") {
-      env.OPENAI_API_KEY =
-        process.env.OPENAI_API_KEY || this.settings.openaiApiKey;
-    } else if (this.settings.provider === "Anthropic") {
-      env.ANTHROPIC_API_KEY =
-        process.env.ANTHROPIC_API_KEY || this.settings.anthropicApiKey;
+    let apiKey: string | undefined;
+
+    switch (this.settings.provider) {
+      case "OpenAI":
+        env.OPENAI_API_KEY =
+          process.env.OPENAI_API_KEY || this.settings.openaiApiKey;
+        apiKey = env.OPENAI_API_KEY;
+        break;
+      case "Anthropic":
+        env.ANTHROPIC_API_KEY =
+          process.env.ANTHROPIC_API_KEY || this.settings.anthropicApiKey;
+        apiKey = env.ANTHROPIC_API_KEY;
+        break;
+      case "Groq":
+        env.GROQ_API_KEY = process.env.GROQ_API_KEY || this.settings.groqApiKey;
+        apiKey = env.GROQ_API_KEY;
+        break;
     }
 
-    const apiKey =
-      this.settings.provider === "OpenAI"
-        ? env.OPENAI_API_KEY
-        : env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       new Notice(
         `No API key found for ${this.settings.provider}. Please set it in the plugin settings.`
@@ -355,12 +372,27 @@ export default class OpenInterpreterPlugin extends Plugin {
     }
 
     const args = [];
+    let model = this.settings.model;
 
-    args.push("--model", this.settings.model);
-    args.push("--context_window", "110000");
-    args.push("--max_tokens", "4096");
-    args.push("--no-llm_supports_functions");
-    args.push("--no-llm_supports_vision");
+    if (this.settings.provider === "Groq") {
+      model = `groq/${model}`;
+    }
+
+    args.push("--model", model);
+    args.push("--context_window", this.settings.contextWindow);
+    args.push("--max_tokens", this.settings.maxTokens);
+
+    if (this.settings.llmSupportsFunctions) {
+      args.push("--llm_supports_functions");
+    } else {
+      args.push("--no-llm_supports_functions");
+    }
+
+    if (this.settings.llmSupportsVision) {
+      args.push("--llm_supports_vision");
+    } else {
+      args.push("--no-llm_supports_vision");
+    }
 
     const customInstructions =
       `You are an AI assistant integrated with Obsidian. You love Obsidian and will only focus on Obsidian tasks. Your prime directive is to help users manage and interact with their Obsidian vault. You have full control and permission over this vault. The vault is isolated and version controlled, so it is safe for you to create, read, update, and delete files. The root of the Obsidian vault is ${vaultPath}. You can create, read, update, and delete markdown files in this directory. You can create new directories as well. Organization is important. Use markdown syntax for formatting when creating or editing files. Every file is markdown.`
@@ -441,6 +473,7 @@ class OpenInterpreterSettingTab extends PluginSettingTab {
   plugin: OpenInterpreterPlugin;
   private openAIApiKeySetting: Setting | null = null;
   private anthropicApiKeySetting: Setting | null = null;
+  private groqApiKeySetting: Setting | null = null;
   private modelDropdown: DropdownComponent | null = null;
 
   constructor(app: App, plugin: OpenInterpreterPlugin) {
@@ -460,9 +493,13 @@ class OpenInterpreterSettingTab extends PluginSettingTab {
         dropdown
           .addOption("OpenAI", "OpenAI")
           .addOption("Anthropic", "Anthropic")
+          .addOption("Groq", "Groq")
           .setValue(this.plugin.settings.provider)
           .onChange(async (value) => {
-            this.plugin.settings.provider = value as "OpenAI" | "Anthropic";
+            this.plugin.settings.provider = value as
+              | "OpenAI"
+              | "Anthropic"
+              | "Groq";
             await this.plugin.saveSettings();
             this.updateApiKeyVisibility();
             this.updateModelOptions();
@@ -495,6 +532,19 @@ class OpenInterpreterSettingTab extends PluginSettingTab {
           })
       );
 
+    this.groqApiKeySetting = new Setting(containerEl)
+      .setName("Groq API Key")
+      .setDesc("Enter your Groq API key")
+      .addText((text) =>
+        text
+          .setPlaceholder("Enter your Groq API key")
+          .setValue(this.plugin.settings.groqApiKey)
+          .onChange(async (value) => {
+            this.plugin.settings.groqApiKey = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
     new Setting(containerEl)
       .setName("Model")
       .setDesc("Select the LLM model")
@@ -507,32 +557,82 @@ class OpenInterpreterSettingTab extends PluginSettingTab {
         });
       });
 
+    new Setting(containerEl)
+      .setName("Context Window")
+      .setDesc("Set the context window size")
+      .addText((text) =>
+        text
+          .setPlaceholder("Enter context window size")
+          .setValue(this.plugin.settings.contextWindow)
+          .onChange(async (value) => {
+            this.plugin.settings.contextWindow = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Max Tokens")
+      .setDesc("Set the maximum number of tokens")
+      .addText((text) =>
+        text
+          .setPlaceholder("Enter max tokens")
+          .setValue(this.plugin.settings.maxTokens)
+          .onChange(async (value) => {
+            this.plugin.settings.maxTokens = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("LLM Supports Functions")
+      .setDesc("Enable or disable LLM support for functions")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.llmSupportsFunctions)
+          .onChange(async (value) => {
+            this.plugin.settings.llmSupportsFunctions = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("LLM Supports Vision")
+      .setDesc("Enable or disable LLM support for vision")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.llmSupportsVision)
+          .onChange(async (value) => {
+            this.plugin.settings.llmSupportsVision = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
     this.updateApiKeyVisibility();
   }
 
   private updateApiKeyVisibility() {
-    if (this.openAIApiKeySetting && this.anthropicApiKeySetting) {
-      if (this.plugin.settings.provider === "OpenAI") {
-        this.openAIApiKeySetting.settingEl.style.display = "block";
-        this.anthropicApiKeySetting.settingEl.style.display = "none";
-      } else {
-        this.openAIApiKeySetting.settingEl.style.display = "none";
-        this.anthropicApiKeySetting.settingEl.style.display = "block";
-      }
+    if (
+      this.openAIApiKeySetting &&
+      this.anthropicApiKeySetting &&
+      this.groqApiKeySetting
+    ) {
+      this.openAIApiKeySetting.settingEl.style.display =
+        this.plugin.settings.provider === "OpenAI" ? "block" : "none";
+      this.anthropicApiKeySetting.settingEl.style.display =
+        this.plugin.settings.provider === "Anthropic" ? "block" : "none";
+      this.groqApiKeySetting.settingEl.style.display =
+        this.plugin.settings.provider === "Groq" ? "block" : "none";
     }
   }
 
   private updateModelOptions() {
     if (this.modelDropdown) {
       const models = this.getModelsForProvider(this.plugin.settings.provider);
-      // Remove all existing options
       this.modelDropdown.selectEl.empty();
-      // Add new options
       Object.entries(models).forEach(([value, name]) => {
         this.modelDropdown?.addOption(value, name);
       });
 
-      // Set the first model as default if the current model is not in the list
       if (!models[this.plugin.settings.model]) {
         this.plugin.settings.model = Object.keys(models)[0];
         this.plugin.saveSettings();
@@ -543,7 +643,7 @@ class OpenInterpreterSettingTab extends PluginSettingTab {
   }
 
   private getModelsForProvider(
-    provider: "OpenAI" | "Anthropic"
+    provider: "OpenAI" | "Anthropic" | "Groq"
   ): Record<string, string> {
     switch (provider) {
       case "OpenAI":
@@ -555,6 +655,12 @@ class OpenInterpreterSettingTab extends PluginSettingTab {
         return {
           "claude-3-5-sonnet-20241022": "Claude 3.5 Sonnet",
           "claude-3-opus-20240229": "Claude 3 Opus",
+        };
+      case "Groq":
+        return {
+          "llama-3.1-70b-versatile": "Llama 3.1 70B",
+          "llama-3.1-8b-instant": "Llama 3.1 8B",
+          "mixtral-8x7b-32768": "Mixtral 8x7B",
         };
       default:
         console.error(`Unknown provider: ${provider}`);
