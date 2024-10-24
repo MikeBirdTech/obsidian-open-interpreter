@@ -509,41 +509,89 @@ class OpenInterpreterSettingTab extends PluginSettingTab {
     this.openAIApiKeySetting = new Setting(containerEl)
       .setName("OpenAI API Key")
       .setDesc("Enter your OpenAI API key")
-      .addText((text) =>
+      .addText((text) => {
+        let isPasswordVisible = false;
         text
           .setPlaceholder("Enter your OpenAI API key")
           .setValue(this.plugin.settings.openaiApiKey)
-          .onChange(async (value) => {
-            this.plugin.settings.openaiApiKey = value;
-            await this.plugin.saveSettings();
-          })
-      );
+          .inputEl.setAttribute("type", "password"); // Set input type to password
+        text.onChange(async (value) => {
+          this.plugin.settings.openaiApiKey = value;
+          await this.plugin.saveSettings();
+        });
+
+        const toggleButton = text.inputEl.parentElement?.createEl("button", {
+          text: "Show",
+          cls: "api-key-toggle",
+        });
+
+        toggleButton?.addEventListener("click", () => {
+          isPasswordVisible = !isPasswordVisible;
+          text.inputEl.setAttribute(
+            "type",
+            isPasswordVisible ? "text" : "password"
+          );
+          toggleButton.textContent = isPasswordVisible ? "Hide" : "Show";
+        });
+      });
 
     this.anthropicApiKeySetting = new Setting(containerEl)
       .setName("Anthropic API Key")
       .setDesc("Enter your Anthropic API key")
-      .addText((text) =>
+      .addText((text) => {
+        let isPasswordVisible = false;
         text
           .setPlaceholder("Enter your Anthropic API key")
           .setValue(this.plugin.settings.anthropicApiKey)
-          .onChange(async (value) => {
-            this.plugin.settings.anthropicApiKey = value;
-            await this.plugin.saveSettings();
-          })
-      );
+          .inputEl.setAttribute("type", "password"); // Set input type to password
+        text.onChange(async (value) => {
+          this.plugin.settings.anthropicApiKey = value;
+          await this.plugin.saveSettings();
+        });
+
+        const toggleButton = text.inputEl.parentElement?.createEl("button", {
+          text: "Show",
+          cls: "api-key-toggle",
+        });
+
+        toggleButton?.addEventListener("click", () => {
+          isPasswordVisible = !isPasswordVisible;
+          text.inputEl.setAttribute(
+            "type",
+            isPasswordVisible ? "text" : "password"
+          );
+          toggleButton.textContent = isPasswordVisible ? "Hide" : "Show";
+        });
+      });
 
     this.groqApiKeySetting = new Setting(containerEl)
       .setName("Groq API Key")
       .setDesc("Enter your Groq API key")
-      .addText((text) =>
+      .addText((text) => {
+        let isPasswordVisible = false;
         text
           .setPlaceholder("Enter your Groq API key")
           .setValue(this.plugin.settings.groqApiKey)
-          .onChange(async (value) => {
-            this.plugin.settings.groqApiKey = value;
-            await this.plugin.saveSettings();
-          })
-      );
+          .inputEl.setAttribute("type", "password"); // Set input type to password
+        text.onChange(async (value) => {
+          this.plugin.settings.groqApiKey = value;
+          await this.plugin.saveSettings();
+        });
+
+        const toggleButton = text.inputEl.parentElement?.createEl("button", {
+          text: "Show",
+          cls: "api-key-toggle",
+        });
+
+        toggleButton?.addEventListener("click", () => {
+          isPasswordVisible = !isPasswordVisible;
+          text.inputEl.setAttribute(
+            "type",
+            isPasswordVisible ? "text" : "password"
+          );
+          toggleButton.textContent = isPasswordVisible ? "Hide" : "Show";
+        });
+      });
 
     new Setting(containerEl)
       .setName("Model")
