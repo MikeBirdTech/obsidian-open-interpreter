@@ -1,7 +1,7 @@
 {
   "id": "open-interpreter",
   "name": "Open Interpreter",
-  "version": "1.2.3",
+  "version": "1.3.1",
   "minAppVersion": "0.15.0",
   "description": "Use Open Interpreter to run automatic operations on your vault",
   "author": "Mike Bird",
