@@ -12,11 +12,9 @@ import {
 import { exec, ChildProcess, spawn } from "child_process";
 import * as os from "os";
 import * as fs from "fs/promises";
+import path from "path";
 
 interface OpenInterpreterSettings {
-  openaiApiKey: string;
-  anthropicApiKey: string;
-  groqApiKey: string;
   provider: "OpenAI" | "Anthropic" | "Groq";
   model: string;
   contextWindow: string;
@@ -26,9 +24,6 @@ interface OpenInterpreterSettings {
 }
 
 const DEFAULT_SETTINGS: OpenInterpreterSettings = {
-  openaiApiKey: "",
-  anthropicApiKey: "",
-  groqApiKey: "",
   provider: "Anthropic",
   model: "claude-3-5-sonnet-20241022",
   contextWindow: "4000",
@@ -36,6 +31,114 @@ const DEFAULT_SETTINGS: OpenInterpreterSettings = {
   llmSupportsFunctions: false,
   llmSupportsVision: false,
 };
+
+interface SecureStorage {
+  keys: {
+    openai?: string;
+    anthropic?: string;
+    groq?: string;
+  };
+}
+
+class SecureKeyStorage {
+  private storagePath: string;
+  private keys: SecureStorage = { keys: {} };
+
+  constructor(private app: App) {
+    const vaultPath = (app.vault.adapter as any).getBasePath();
+    this.storagePath = path.join(vaultPath, ".obsidian", ".keys.json");
+  }
+
+  async initialize() {
+    try {
+      await this.ensureStorageFile();
+      await this.loadKeys();
+    } catch (error) {
+      console.error("Error initializing secure storage:", error);
+      new Notice("Failed to initialize secure storage");
+    }
+  }
+
+  private async ensureStorageFile() {
+    try {
+      // Create directories if needed
+      const dirPath = path.dirname(this.storagePath);
+      const vaultPath = (this.app.vault.adapter as any).getBasePath();
+
+      // Update root .gitignore
+      const gitignorePath = path.join(vaultPath, ".gitignore");
+      const ignorePattern = ".obsidian/.keys.json";
+
+      try {
+        let gitignoreContent = "";
+        try {
+          gitignoreContent = await fs.readFile(gitignorePath, "utf-8");
+        } catch {
+          // File doesn't exist yet
+        }
+
+        const lines = gitignoreContent.split("\n");
+        if (!lines.some((line) => line.trim() === ignorePattern)) {
+          const newContent = gitignoreContent
+            ? gitignoreContent.endsWith("\n")
+              ? gitignoreContent + ignorePattern + "\n"
+              : gitignoreContent + "\n" + ignorePattern + "\n"
+            : ignorePattern + "\n";
+
+          await fs.writeFile(gitignorePath, newContent);
+        }
+      } catch (error) {
+        console.error("Error updating .gitignore:", error);
+        new Notice(
+          "Failed to update .gitignore. Please add .obsidian/.keys.json manually."
+        );
+      }
+    } catch (error) {
+      console.error("Error ensuring storage file:", error);
+      throw error;
+    }
+  }
+
+  private async loadKeys() {
+    try {
+      const content = await fs.readFile(this.storagePath, "utf-8");
+      this.keys = JSON.parse(content);
+    } catch (error) {
+      console.error("Error loading keys:", error);
+      this.keys = { keys: {} };
+    }
+  }
+
+  private async saveKeys() {
+    try {
+      await fs.writeFile(
+        this.storagePath,
+        JSON.stringify(this.keys, null, 2),
+        "utf-8"
+      );
+    } catch (error) {
+      console.error("Error saving keys:", error);
+      throw error;
+    }
+  }
+
+  async getKey(provider: string): Promise<string | undefined> {
+    const key = provider.toLowerCase() as "openai" | "anthropic" | "groq";
+    return this.keys.keys[key];
+  }
+
+  async setKey(provider: string, key: string) {
+    const keyName = provider.toLowerCase() as "openai" | "anthropic" | "groq";
+    this.keys.keys[keyName] = key;
+    await this.saveKeys();
+  }
+
+  async removeKey(provider: string) {
+    const keyName = provider.toLowerCase() as "openai" | "anthropic" | "groq";
+    delete this.keys.keys[keyName];
+    await this.saveKeys();
+  }
+}
 
 class InstallationGuideModal extends Modal {
   constructor(app: App) {
@@ -258,9 +361,12 @@ class InterpreterChatModal extends Modal {
 
 export default class OpenInterpreterPlugin extends Plugin {
   settings: OpenInterpreterSettings = DEFAULT_SETTINGS;
+  keyStorage!: SecureKeyStorage;
   private interpreterInstalled: boolean = false;
 
   async onload() {
+    this.keyStorage = new SecureKeyStorage(this.app);
+    await this.keyStorage.initialize();
     await this.loadSettings();
 
     this.addSettingTab(new OpenInterpreterSettingTab(this.app, this));
@@ -310,6 +416,22 @@ export default class OpenInterpreterPlugin extends Plugin {
     return null;
   }
 
+  private getApiKey(provider: string): string | undefined {
+    console.log("All environment variables:", Object.keys(process.env));
+    console.log("Complete env object:", JSON.stringify(process.env, null, 2));
+
+    switch (provider) {
+      case "OpenAI":
+        return process.env.OPENAI_API_KEY;
+      case "Anthropic":
+        return process.env.ANTHROPIC_API_KEY;
+      case "Groq":
+        return process.env.GROQ_API_KEY;
+      default:
+        return undefined;
+    }
+  }
+
   async runInterpreter() {
     await this.checkInterpreterInstallation();
     if (!this.interpreterInstalled) {
@@ -344,31 +466,27 @@ export default class OpenInterpreterPlugin extends Plugin {
       return;
     }
 
-    const env = { ...process.env };
-    let apiKey: string | undefined;
-
-    switch (this.settings.provider) {
-      case "OpenAI":
-        env.OPENAI_API_KEY =
-          process.env.OPENAI_API_KEY || this.settings.openaiApiKey;
-        apiKey = env.OPENAI_API_KEY;
-        break;
-      case "Anthropic":
-        env.ANTHROPIC_API_KEY =
-          process.env.ANTHROPIC_API_KEY || this.settings.anthropicApiKey;
-        apiKey = env.ANTHROPIC_API_KEY;
-        break;
-      case "Groq":
-        env.GROQ_API_KEY = process.env.GROQ_API_KEY || this.settings.groqApiKey;
-        apiKey = env.GROQ_API_KEY;
-        break;
-    }
-
+    const apiKey = await this.keyStorage.getKey(
+      this.settings.provider.toLowerCase()
+    );
     if (!apiKey) {
       new Notice(
-        `No API key found for ${this.settings.provider}. Please set it in the plugin settings.`
+        `Please set your ${this.settings.provider} API key in settings`
       );
       return;
+    }
+
+    const env = { ...process.env };
+    switch (this.settings.provider) {
+      case "OpenAI":
+        env.OPENAI_API_KEY = apiKey;
+        break;
+      case "Anthropic":
+        env.ANTHROPIC_API_KEY = apiKey;
+        break;
+      case "Groq":
+        env.GROQ_API_KEY = apiKey;
+        break;
     }
 
     const args = [];
@@ -471,9 +589,6 @@ export default class OpenInterpreterPlugin extends Plugin {
 
 class OpenInterpreterSettingTab extends PluginSettingTab {
   plugin: OpenInterpreterPlugin;
-  private openAIApiKeySetting: Setting | null = null;
-  private anthropicApiKeySetting: Setting | null = null;
-  private groqApiKeySetting: Setting | null = null;
   private modelDropdown: DropdownComponent | null = null;
 
   constructor(app: App, plugin: OpenInterpreterPlugin) {
@@ -481,7 +596,7 @@ class OpenInterpreterSettingTab extends PluginSettingTab {
     this.plugin = plugin;
   }
 
-  display(): void {
+  async display(): Promise<void> {
     const { containerEl } = this;
 
     containerEl.empty();
@@ -501,97 +616,38 @@ class OpenInterpreterSettingTab extends PluginSettingTab {
               | "Anthropic"
               | "Groq";
             await this.plugin.saveSettings();
-            this.updateApiKeyVisibility();
             this.updateModelOptions();
           })
       );
 
-    this.openAIApiKeySetting = new Setting(containerEl)
-      .setName("OpenAI API Key")
-      .setDesc("Enter your OpenAI API key")
-      .addText((text) => {
-        let isPasswordVisible = false;
-        text
-          .setPlaceholder("Enter your OpenAI API key")
-          .setValue(this.plugin.settings.openaiApiKey)
-          .inputEl.setAttribute("type", "password"); // Set input type to password
-        text.onChange(async (value) => {
-          this.plugin.settings.openaiApiKey = value;
-          await this.plugin.saveSettings();
-        });
+    // API Key settings
+    const providers = ["OpenAI", "Anthropic", "Groq"];
+    for (const provider of providers) {
+      const currentKey = await this.plugin.keyStorage.getKey(
+        provider.toLowerCase()
+      );
 
-        const toggleButton = text.inputEl.parentElement?.createEl("button", {
-          text: "Show",
-          cls: "api-key-toggle",
+      new Setting(containerEl)
+        .setName(`${provider} API Key`)
+        .setDesc(`Enter your ${provider} API key`)
+        .addText((text) => {
+          text
+            .setPlaceholder(`Enter ${provider} API key`)
+            .setValue(currentKey || "")
+            .onChange(async (value) => {
+              if (value) {
+                await this.plugin.keyStorage.setKey(
+                  provider.toLowerCase(),
+                  value
+                );
+              } else {
+                await this.plugin.keyStorage.removeKey(provider.toLowerCase());
+              }
+            });
+          text.inputEl.type = "password";
+          text.inputEl.dataset.lpignore = "true";
         });
-
-        toggleButton?.addEventListener("click", () => {
-          isPasswordVisible = !isPasswordVisible;
-          text.inputEl.setAttribute(
-            "type",
-            isPasswordVisible ? "text" : "password"
-          );
-          toggleButton.textContent = isPasswordVisible ? "Hide" : "Show";
-        });
-      });
-
-    this.anthropicApiKeySetting = new Setting(containerEl)
-      .setName("Anthropic API Key")
-      .setDesc("Enter your Anthropic API key")
-      .addText((text) => {
-        let isPasswordVisible = false;
-        text
-          .setPlaceholder("Enter your Anthropic API key")
-          .setValue(this.plugin.settings.anthropicApiKey)
-          .inputEl.setAttribute("type", "password"); // Set input type to password
-        text.onChange(async (value) => {
-          this.plugin.settings.anthropicApiKey = value;
-          await this.plugin.saveSettings();
-        });
-
-        const toggleButton = text.inputEl.parentElement?.createEl("button", {
-          text: "Show",
-          cls: "api-key-toggle",
-        });
-
-        toggleButton?.addEventListener("click", () => {
-          isPasswordVisible = !isPasswordVisible;
-          text.inputEl.setAttribute(
-            "type",
-            isPasswordVisible ? "text" : "password"
-          );
-          toggleButton.textContent = isPasswordVisible ? "Hide" : "Show";
-        });
-      });
-
-    this.groqApiKeySetting = new Setting(containerEl)
-      .setName("Groq API Key")
-      .setDesc("Enter your Groq API key")
-      .addText((text) => {
-        let isPasswordVisible = false;
-        text
-          .setPlaceholder("Enter your Groq API key")
-          .setValue(this.plugin.settings.groqApiKey)
-          .inputEl.setAttribute("type", "password"); // Set input type to password
-        text.onChange(async (value) => {
-          this.plugin.settings.groqApiKey = value;
-          await this.plugin.saveSettings();
-        });
-
-        const toggleButton = text.inputEl.parentElement?.createEl("button", {
-          text: "Show",
-          cls: "api-key-toggle",
-        });
-
-        toggleButton?.addEventListener("click", () => {
-          isPasswordVisible = !isPasswordVisible;
-          text.inputEl.setAttribute(
-            "type",
-            isPasswordVisible ? "text" : "password"
-          );
-          toggleButton.textContent = isPasswordVisible ? "Hide" : "Show";
-        });
-      });
+    }
 
     new Setting(containerEl)
       .setName("Model")
@@ -654,23 +710,6 @@ class OpenInterpreterSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
-
-    this.updateApiKeyVisibility();
-  }
-
-  private updateApiKeyVisibility() {
-    if (
-      this.openAIApiKeySetting &&
-      this.anthropicApiKeySetting &&
-      this.groqApiKeySetting
-    ) {
-      this.openAIApiKeySetting.settingEl.style.display =
-        this.plugin.settings.provider === "OpenAI" ? "block" : "none";
-      this.anthropicApiKeySetting.settingEl.style.display =
-        this.plugin.settings.provider === "Anthropic" ? "block" : "none";
-      this.groqApiKeySetting.settingEl.style.display =
-        this.plugin.settings.provider === "Groq" ? "block" : "none";
-    }
   }
 
   private updateModelOptions() {
