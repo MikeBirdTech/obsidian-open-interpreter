@@ -15,12 +15,13 @@ import * as fs from "fs/promises";
 import path from "path";
 
 interface OpenInterpreterSettings {
-  provider: "OpenAI" | "Anthropic" | "Groq";
+  provider: "OpenAI" | "Anthropic" | "Groq" | "Custom";
   model: string;
   contextWindow: string;
   maxTokens: string;
   llmSupportsFunctions: boolean;
   llmSupportsVision: boolean;
+  customApiUrl?: string;
 }
 
 const DEFAULT_SETTINGS: OpenInterpreterSettings = {
@@ -30,6 +31,7 @@ const DEFAULT_SETTINGS: OpenInterpreterSettings = {
   maxTokens: "2048",
   llmSupportsFunctions: false,
   llmSupportsVision: false,
+  customApiUrl: "",
 };
 
 interface SecureStorage {
@@ -427,6 +429,8 @@ export default class OpenInterpreterPlugin extends Plugin {
         return process.env.ANTHROPIC_API_KEY;
       case "Groq":
         return process.env.GROQ_API_KEY;
+      case "Custom":
+        return ""; // Custom API key handling if necessary
       default:
         return undefined;
     }
@@ -477,16 +481,30 @@ export default class OpenInterpreterPlugin extends Plugin {
     }
 
     const env = { ...process.env };
-    switch (this.settings.provider) {
-      case "OpenAI":
-        env.OPENAI_API_KEY = apiKey;
-        break;
-      case "Anthropic":
-        env.ANTHROPIC_API_KEY = apiKey;
-        break;
-      case "Groq":
-        env.GROQ_API_KEY = apiKey;
-        break;
+    let apiUrl = "";
+    if (this.settings.provider === "Custom") {
+      apiUrl = this.settings.customApiUrl || "";
+      // Optionally handle API key for custom providers
+    } else {
+      switch (this.settings.provider) {
+        case "OpenAI":
+          env.OPENAI_API_KEY = apiKey;
+          apiUrl = "https://api.openai.com/v1";
+          break;
+        case "Anthropic":
+          env.ANTHROPIC_API_KEY = apiKey;
+          apiUrl = "https://api.anthropic.com/v1";
+          break;
+        case "Groq":
+          env.GROQ_API_KEY = apiKey;
+          apiUrl = "https://api.groq.com/v1";
+          break;
+      }
+    }
+
+    if (this.settings.provider === "Custom" && !apiUrl) {
+      new Notice("Please enter a valid custom API URL.");
+      return;
     }
 
     const args = [];
@@ -518,6 +536,10 @@ export default class OpenInterpreterPlugin extends Plugin {
         .trim();
 
     args.push("--custom_instructions", `"${customInstructions}"`);
+
+    if (this.settings.provider === "Custom" && this.settings.customApiUrl) {
+      args.push("--api_url", this.settings.customApiUrl);
+    }
 
     console.log(
       "Spawning interpreter with command:",
@@ -609,12 +631,14 @@ class OpenInterpreterSettingTab extends PluginSettingTab {
           .addOption("OpenAI", "OpenAI")
           .addOption("Anthropic", "Anthropic")
           .addOption("Groq", "Groq")
+          .addOption("Custom", "Custom")
           .setValue(this.plugin.settings.provider)
           .onChange(async (value) => {
             this.plugin.settings.provider = value as
-              | "OpenAI"
+              | "OpenAI" 
               | "Anthropic"
-              | "Groq";
+              | "Groq"
+              | "Custom";
             await this.plugin.saveSettings();
             this.updateModelOptions();
           })
@@ -650,7 +674,20 @@ class OpenInterpreterSettingTab extends PluginSettingTab {
     }
 
     new Setting(containerEl)
-      .setName("Model")
+      .setName("Custom API URL")
+      .setDesc("Enter a custom API URL for your LLM provider")
+      .addText((text) =>
+        text
+          .setPlaceholder("https://api.your-llm-provider.com")
+          .setValue(this.plugin.settings.customApiUrl || "")
+          .onChange(async (value) => {
+            this.plugin.settings.customApiUrl = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Model") 
       .setDesc("Select the LLM model")
       .addDropdown((dropdown) => {
         this.modelDropdown = dropdown;
